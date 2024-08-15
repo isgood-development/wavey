@@ -70,7 +70,7 @@ impl State {
                 Task::none()
             }
 
-            Event::Tick => {
+            Event::Tick => {               
                 if self.is_paused {
                     return Task::none();
                 }
@@ -135,6 +135,7 @@ impl State {
 
                 Task::none()
             }
+
             Event::InitiatePlay(video_id, display_name, total_duration, handle, tracks) => {
                 self.is_paused = false;
                 self.slider_is_active = false;

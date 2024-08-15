@@ -1,41 +1,44 @@
-use super::helpers::theme;
+use super::super::helpers::theme;
 use crate::core::json;
+use crate::state::AppSettings;
 
 use iced::widget::{button, column, container, pick_list, row, scrollable, text};
 use iced::{Alignment, Length, Task};
 
 pub struct State {
-    themes: theme::Themes,
-    rpc_enabled: bool,
+    pub values: Option<AppSettings>,
+
+    theme: theme::Themes,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event {
     ThemeSelected(theme::Themes),
     ToggleRpcEnabled,
+    Continue,
 }
 
 impl State {
     pub fn update(&mut self, message: Event) -> Task<Event> {
         match message {
-            Event::ThemeSelected(theme) => {
-                self.themes = theme;
-
-                json::set_theme(theme.to_string().as_str()).unwrap();
-
-                Task::none()
-            }
+            Event::Continue => Task::none(),
+            Event::ThemeSelected(theme) => Task::perform(json::save_settings(AppSettings {
+                    theme: theme.to_string(),
+                    ..Default::default()
+                }), |_| Event::Continue),
+            
 
             Event::ToggleRpcEnabled => {
-                if self.rpc_enabled {
-                    self.rpc_enabled = false;
+                if self.values.as_ref().unwrap().rpc_enabled {
+                    self.values.as_mut().unwrap().rpc_enabled = false;
                 } else {
-                    self.rpc_enabled = true;
+                    self.values.as_mut().unwrap().rpc_enabled = true;
                 }
 
-                json::set_rpc_enabled(self.rpc_enabled).unwrap();
-
-                Task::none()
+                Task::perform(json::save_settings(AppSettings {
+                    rpc_enabled: self.values.as_ref().unwrap().rpc_enabled,
+                    ..Default::default()
+                }), |_| Event::Continue)
             }
         }
     }
@@ -47,14 +50,14 @@ impl State {
                     text("Settings").size(18),
                     row![
                         text("Theme:"),
-                        pick_list(theme::Themes::ALL, Some(self.themes), Event::ThemeSelected),
+                        pick_list(theme::Themes::ALL, Some(self.theme), Event::ThemeSelected),
                         text("Themes beside Light and Dark are experimental.").size(14),
                     ]
                     .align_y(Alignment::Center)
                     .spacing(10),
                     row![
                         text("Discord Rich Presence:"),
-                        button(if self.rpc_enabled {
+                        button(if self.values.as_ref().unwrap().rpc_enabled {
                             "Enabled"
                         } else {
                             "Disabled"
@@ -79,8 +82,9 @@ impl State {
 impl Default for State {
     fn default() -> Self {
         Self {
-            themes: theme::Themes::default(),
-            rpc_enabled: json::get_rpc_enabled().unwrap(),
+            values: None,
+
+            theme: theme::Themes::default(),
         }
     }
 }

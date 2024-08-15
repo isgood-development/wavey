@@ -1,12 +1,20 @@
-use std::path::Path;
+mod components;
+mod helpers;
+mod pages;
+
 use std::sync::mpsc;
 
-use crate::core::json;
 use crate::core::playback;
 use crate::core::rpc;
+use crate::state;
 use components::control_bar;
 use components::sidebar;
 use components::toast;
+use pages::add_music;
+use pages::ffmpeg;
+use pages::playlist;
+use pages::settings;
+use pages::track_list;
 
 use iced::advanced::graphics::futures::event;
 use iced::event::Event as IcedEvent;
@@ -16,16 +24,9 @@ use iced::widget;
 use iced::widget::{column, row};
 use iced::{Subscription, Task, Theme};
 
-mod add_music;
-mod components;
-mod ffmpeg;
-mod helpers;
-mod playlist;
-mod settings;
-mod track_list;
-
 pub struct Pages {
     pub current_page: Page,
+    pub app_settings: Option<state::AppSettings>,
 
     nav: components::nav::State,
     sidebar: components::sidebar::State,
@@ -38,7 +39,7 @@ pub struct Pages {
     playlist: playlist::State,
 
     playback_sender: mpsc::Sender<playback::AudioEvent>,
-    rpc_sender: mpsc::Sender<rpc::RpcEvent>,
+    rpc_sender: Option<mpsc::Sender<rpc::RpcEvent>>,
 
     toasts: Vec<toast::Toast>,
     theme: Theme,
@@ -70,47 +71,19 @@ pub enum UiEvent {
 
     CloseToast(usize),
     KeyboardEvent(IcedEvent),
+
+    SettingsLoaded(state::AppSettings),
 }
 
 impl Pages {
     pub fn new() -> Self {
-        let (audio_sender, audio_reciever) = mpsc::channel();
-        let (rpc_sender, rpc_reciever) = mpsc::channel();
+        let (playback_sender, playback_reciever) = mpsc::channel();
 
-        playback::start_receiver(audio_reciever);
-
-        let rpc = json::get_rpc_enabled();
-
-        let rpc_enabled: bool = match rpc {
-            Ok(value) => value,
-            Err(_) => false,
-        };
-
-        rpc::start_receiver(rpc_reciever);
-
-        let theme_value = json::get_theme().expect("Dark");
-        let matched = helpers::theme::get_theme_from_settings(theme_value);
-
-        let current_page: Page;
-
-        let ffmpeg_path = json::get_ffmpeg_path();
-
-        if let Ok(path) = &ffmpeg_path {
-            if path.is_empty() || !Path::new(path).exists() {
-                if cfg!(unix) {
-                    current_page = Page::TrackList;
-                } else {
-                    current_page = Page::FFmpeg;
-                }
-            } else {
-                current_page = Page::TrackList;
-            }
-        } else {
-            current_page = Page::FFmpeg;
-        }
+        playback::start_receiver(playback_reciever);
 
         Self {
-            current_page,
+            current_page: Page::TrackList,
+            app_settings: None,
 
             nav: Default::default(),
             sidebar: Default::default(),
@@ -122,18 +95,41 @@ impl Pages {
             ffmpeg: Default::default(),
             playlist: Default::default(),
 
-            playback_sender: audio_sender,
-            rpc_sender: rpc_sender,
+            playback_sender,
+            rpc_sender: None,
 
             toasts: vec![],
-            theme: matched,
+            theme: Theme::Dark,
             track_list_loaded: false,
-            rpc_enabled,
+            rpc_enabled: false,
         }
     }
 
     pub fn update(&mut self, message: UiEvent) -> Task<UiEvent> {
         match message {
+            UiEvent::SettingsLoaded(settings) => {
+                self.app_settings = Some(settings.clone());
+
+                self.theme = helpers::theme::get_theme_from_settings(&settings.theme);
+                self.rpc_enabled = settings.rpc_enabled;
+                
+                if settings.ffmpeg_path.is_empty() {
+                    self.current_page = Page::FFmpeg;
+                } else {
+                    self.current_page = Page::TrackList;
+                }
+
+                if self.rpc_enabled {
+                    let (rpc_sender, rpc_receiver) = mpsc::channel();
+                    
+                    rpc::start_receiver(rpc_receiver);
+
+                    self.rpc_sender = Some(rpc_sender);
+                }
+
+                Task::none()
+            }
+
             UiEvent::KeyboardEvent(event) => match event {
                 IcedEvent::Keyboard(keyboard::Event::KeyPressed {
                     key: keyboard::Key::Named(key::Named::Tab),
@@ -205,6 +201,8 @@ impl Pages {
 
                         if self.rpc_enabled {
                             self.rpc_sender
+                                .as_ref()
+                                .unwrap()
                                 .send(rpc::RpcEvent::Set(
                                     display_name.clone(),
                                     duration.to_string(),
@@ -324,6 +322,8 @@ impl Pages {
                 }
             }
             UiEvent::SettingsAction(event) => {
+                self.settings.values = self.app_settings.clone();
+
                 match event {
                     settings::Event::ThemeSelected(theme) => {
                         self.theme = helpers::theme::match_theme(Some(theme));
@@ -331,12 +331,15 @@ impl Pages {
                     settings::Event::ToggleRpcEnabled => {
                         if self.rpc_enabled {
                             self.rpc_sender
+                                .as_ref()
+                                .unwrap()
                                 .send(rpc::RpcEvent::Hide)
                                 .expect("Failed to send rpc command");
                         }
 
                         self.rpc_enabled = !self.rpc_enabled
                     }
+                    _ => (),
                 }
                 self.settings.update(event).map(UiEvent::SettingsAction)
             }
@@ -376,6 +379,8 @@ impl Pages {
 
                         if self.rpc_enabled {
                             self.rpc_sender
+                                .as_ref()
+                                .unwrap()
                                 .send(rpc::RpcEvent::Set(
                                     display_name.clone(),
                                     duration.to_string(),
@@ -535,6 +540,8 @@ impl Pages {
                         if self.rpc_enabled {
                             if !self.controls.is_paused {
                                 self.rpc_sender
+                                    .as_ref()
+                                    .unwrap()
                                     .send(rpc::RpcEvent::SetProgress(
                                         self.controls.display_name.clone(),
                                         self.controls.seconds_passed.to_string(),

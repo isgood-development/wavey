@@ -9,6 +9,7 @@ use log4rs;
 
 mod core;
 mod ui;
+mod state;
 
 pub fn main() -> iced::Result {
     // Setting the app icon.
@@ -37,12 +38,13 @@ pub fn main() -> iced::Result {
         .font(include_bytes!("../assets/icons.ttf").as_slice())
         .font(include_bytes!("../assets/font.ttf").as_slice())
         .theme(Wavey::theme)
-        .run()
+        .run_with(Wavey::new)
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     Pages(ui::UiEvent),
+    SettingsLoaded(Option<state::AppSettings>),
 }
 
 struct Wavey {
@@ -50,7 +52,7 @@ struct Wavey {
 }
 
 impl Wavey {
-    fn new() -> Self {
+    fn new() -> (Self, Task<Message>) {
         log4rs::init_file("logging_config.yaml", Default::default()).unwrap();
 
         log::info!("Starting Wavey.");
@@ -68,14 +70,24 @@ impl Wavey {
             let _ = json::create_file();
         }
 
-        Self {
-            pages: Default::default(),
-        }
+        (
+            Self {
+                pages: Default::default(),
+            },
+            Task::perform(json::load_settings(), Message::SettingsLoaded)
+        )
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Pages(x) => self.pages.update(x).map(Message::Pages),
+            Message::SettingsLoaded(settings) => {
+                if let Some(settings) = settings {
+                    self.pages.update(ui::UiEvent::SettingsLoaded(settings));
+                }
+
+                Task::none()
+            }
         }
     }
 
@@ -89,11 +101,5 @@ impl Wavey {
 
     fn theme(&self) -> iced::Theme {
         self.pages.theme()
-    }
-}
-
-impl Default for Wavey {
-    fn default() -> Self {
-        Self::new()
     }
 }

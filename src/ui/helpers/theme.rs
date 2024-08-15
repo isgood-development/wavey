@@ -32,7 +32,7 @@ pub fn match_theme(new: Option<Themes>) -> Theme {
     }
 }
 
-pub fn get_theme_from_settings(name: String) -> Theme {
+pub fn get_theme_from_settings(name: &String) -> Theme {
     match name.as_str() {
         "Dark" => Theme::Dark,
         "Light" => Theme::Light,

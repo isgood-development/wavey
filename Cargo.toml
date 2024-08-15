@@ -17,7 +17,8 @@ rusty_ytdl = "0.7.3"
 tokio = { version = "1.38.0", features = ["sync", "fs"] }
 image = "0.25.1"
 reqwest = "0.12.5"
-serde_json = "1.0.120"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 log = "0.4"
 log4rs = "1"
 rfd = "0.14.1"

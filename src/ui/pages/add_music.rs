@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use super::helpers::helper;
-use super::helpers::icons;
+use super::super::helpers::helper;
+use super::super::helpers::icons;
 use crate::core::request;
 use crate::core::youtube;
 
