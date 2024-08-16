@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use crate::core::file;
 use crate::core::json;
 use crate::core::request;
-use crate::state::AppSettings;
 
 use iced::widget::{button, column, container, progress_bar, row, text};
 use iced::{Alignment, Length, Subscription, Task};
@@ -98,19 +97,26 @@ impl State {
                 self.start();
                 self.install_pressed = true;
 
-                Task::perform(json::save_settings(AppSettings {
-                    ffmpeg_path: "./data/ffmpeg.exe".to_string(),
-                    ..Default::default()
-                }), |_| Event::Continue)
+                Task::perform(
+                    json::save_settings(move |settings| {
+                        settings.ffmpeg_path = "ffmpeg.exe".to_string();
+                    }),
+                    |_| Event::Continue,
+                )
             }
             Event::ManuallySpecify => Task::perform(file::pick_file(), Event::PathSpecified),
             Event::PathSpecified(Ok(path)) => {
-                let path_str = path.to_str().expect("Path is not valid Unicode");
+                let path_clone = path.clone();
 
-                Task::perform(json::save_settings(AppSettings {
-                    ffmpeg_path: path_str.to_string(),
-                    ..Default::default()
-                }), |_| Event::Continue)
+                Task::perform(
+                    json::save_settings(move |settings| {
+                        settings.ffmpeg_path = path_clone
+                            .to_str()
+                            .expect("Path is not valid Unicode")
+                            .to_string();
+                    }),
+                    |_| Event::Continue,
+                )
             }
             Event::PathSpecified(Err(e)) => {
                 match e {

@@ -70,7 +70,7 @@ impl State {
                 Task::none()
             }
 
-            Event::Tick => {               
+            Event::Tick => {
                 if self.is_paused {
                     return Task::none();
                 }

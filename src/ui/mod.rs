@@ -112,7 +112,7 @@ impl Pages {
 
                 self.theme = helpers::theme::get_theme_from_settings(&settings.theme);
                 self.rpc_enabled = settings.rpc_enabled;
-                
+
                 if settings.ffmpeg_path.is_empty() {
                     self.current_page = Page::FFmpeg;
                 } else {
@@ -121,7 +121,7 @@ impl Pages {
 
                 if self.rpc_enabled {
                     let (rpc_sender, rpc_receiver) = mpsc::channel();
-                    
+
                     rpc::start_receiver(rpc_receiver);
 
                     self.rpc_sender = Some(rpc_sender);
@@ -322,8 +322,16 @@ impl Pages {
                 }
             }
             UiEvent::SettingsAction(event) => {
-                self.settings.values = self.app_settings.clone();
-
+                if !self.settings.is_loaded {
+                    return Task::batch(vec![
+                        self.settings
+                            .update(settings::Event::LoadSettings)
+                            .map(UiEvent::SettingsAction),
+                        self.settings
+                            .update(event.clone())
+                            .map(UiEvent::SettingsAction),
+                    ]);
+                }
                 match event {
                     settings::Event::ThemeSelected(theme) => {
                         self.theme = helpers::theme::match_theme(Some(theme));
@@ -421,7 +429,14 @@ impl Pages {
                                 .map(UiEvent::PlaylistAction)
                         }
                     }
-                    components::sidebar::Event::OpenSettings => self.current_page = Page::Settings,
+                    components::sidebar::Event::OpenSettings => {
+                        return {
+                            self.current_page = Page::Settings;
+                            self.settings
+                                .update(settings::Event::LoadSettings)
+                                .map(UiEvent::SettingsAction)
+                        }
+                    }
                     components::sidebar::Event::OpenTrackList => {
                         self.current_page = Page::TrackList
                     }

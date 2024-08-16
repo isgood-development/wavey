@@ -8,8 +8,8 @@ use log;
 use log4rs;
 
 mod core;
-mod ui;
 mod state;
+mod ui;
 
 pub fn main() -> iced::Result {
     // Setting the app icon.
@@ -74,7 +74,7 @@ impl Wavey {
             Self {
                 pages: Default::default(),
             },
-            Task::perform(json::load_settings(), Message::SettingsLoaded)
+            Task::perform(json::load_settings(), Message::SettingsLoaded),
         )
     }
 
@@ -83,7 +83,9 @@ impl Wavey {
             Message::Pages(x) => self.pages.update(x).map(Message::Pages),
             Message::SettingsLoaded(settings) => {
                 if let Some(settings) = settings {
-                    self.pages.update(ui::UiEvent::SettingsLoaded(settings));
+                    self.pages
+                        .update(ui::UiEvent::SettingsLoaded(settings))
+                        .map(Message::Pages);
                 }
 
                 Task::none()

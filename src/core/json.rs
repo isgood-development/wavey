@@ -25,19 +25,44 @@ pub async fn load_settings() -> Option<state::AppSettings> {
             };
 
             Some(settings)
-
-        },
+        }
         Err(e) => {
             log::error!("Error opening settings file: {}", e);
 
             None
-        },
+        }
     }
 }
 
-pub async fn save_settings(settings: state::AppSettings) -> Result<(), std::io::Error> {
-    let data = serde_json::to_string_pretty(&settings).unwrap();
+pub async fn fetch_existing() -> Result<state::AppSettings, std::io::Error> {
+    let mut file = tokio::fs::File::open(SETTINGS_PATH).await?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).await?;
+    let settings: state::AppSettings = serde_json::from_str(&contents)?;
+    Ok(settings)
+}
 
+pub async fn save_settings<F>(update_fn: F) -> Result<(), std::io::Error>
+where
+    F: FnOnce(&mut state::AppSettings),
+{
+    // Load existing settings
+    let mut settings = match fetch_existing().await {
+        Ok(settings) => settings,
+        Err(e) => {
+            log::error!("Error loading settings file: {}", e);
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to load settings",
+            ));
+        }
+    };
+
+    // Update the specific field
+    update_fn(&mut settings);
+
+    // Serialize and save the updated settings
+    let data = serde_json::to_string_pretty(&settings).unwrap();
     match tokio::fs::File::create(SETTINGS_PATH).await {
         Ok(mut file) => {
             file.write_all(data.as_bytes()).await?;
