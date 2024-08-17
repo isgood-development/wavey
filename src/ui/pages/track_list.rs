@@ -93,6 +93,7 @@ impl State {
                 self.thumbnails_received = false;
 
                 self.track_list = db::get_all_music();
+                self.track_list.reverse();
 
                 let video_ids: Vec<String> = self
                     .track_list
@@ -183,11 +184,21 @@ impl State {
 
     pub fn view(&self) -> iced::Element<Event> {
         let mut column = column![row![
-            text("Your Music").size(18),
-            button("Refresh").on_press(Event::GetThumbnailHandles)
+            text("My Music").size(26),
+            horizontal_space(),
+            button("Refresh").on_press(Event::GetThumbnailHandles),
+            Space::with_width(30)
         ]
         .align_y(Alignment::Center)
         .spacing(10)];
+
+        if self.track_list.is_empty() {
+            return container(column.push(
+                text("Downloaded songs will appear here, but you don't have any!").size(20),
+            ))
+            .padding(10)
+            .into();
+        }
 
         for audio_file in &self.track_list {
             let video_id = audio_file.get("video_id").unwrap();

@@ -282,6 +282,13 @@ impl Pages {
                                     body: "Downloaded video successfully".into(),
                                     status: toast::Status::Success,
                                 });
+
+                                return Task::batch(vec![
+                                    self.track_list
+                                        .update(track_list::Event::GetThumbnailHandles)
+                                        .map(UiEvent::TrackListAction),
+                                    download_command,
+                                ]);
                             }
                             Err(error) => {
                                 log::error!("Failed to download video: {:?}", error);
@@ -409,6 +416,12 @@ impl Pages {
                             track_list_command,
                         ])
                     }
+                    track_list::Event::Submit => return Task::batch(vec![
+                        self.track_list
+                            .update(track_list::Event::GetThumbnailHandles)
+                            .map(UiEvent::TrackListAction),
+                        track_list_command,
+                    ]),
                     _ => track_list_command,
                 }
             }
