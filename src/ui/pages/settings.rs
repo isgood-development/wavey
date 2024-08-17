@@ -34,8 +34,6 @@ impl State {
             Event::LoadSettings => Task::perform(json::load_settings(), Event::SettingsLoaded),
             Event::Continue => Task::none(),
             Event::ThemeSelected(theme) => {
-                print!("Theme selected: {:?}", theme);
-
                 self.theme = theme;
 
                 Task::perform(
