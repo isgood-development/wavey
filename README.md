@@ -59,6 +59,17 @@ Contributions are more than welcome! To get started, take a look at our contribu
 
 If you would like to better understand how the source code works, join the [Discord server](https://discord.com/invite/p5bURjs) and we can help you better understand the mechanics of wavey.
 
+## Demo
+### UI Design:
+
+![Dark](docs/assets/dark.png) | ![Light](docs/assets/light.png) |
+--- | --- |
+Dark Mode | Light Mode |
+
+### Discord RPC:
+
+![Discord RPC](docs/assets/rpc.png)
+
 ## License
 This is licensed under the **GNU General Public License v3.0**. The license can be found [here](https://github.com/isgood-dev/wavey/blob/main/LICENSE).
 
