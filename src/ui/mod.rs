@@ -422,6 +422,14 @@ impl Pages {
                             .map(UiEvent::TrackListAction),
                         track_list_command,
                     ]),
+                    track_list::Event::DeleteTrack => {
+                        return Task::batch(vec![
+                            self.track_list
+                                .update(track_list::Event::GetThumbnailHandles)
+                                .map(UiEvent::TrackListAction),
+                            track_list_command,
+                        ]);
+                    }
                     _ => track_list_command,
                 }
             }
