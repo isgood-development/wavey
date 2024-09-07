@@ -192,6 +192,15 @@ impl Pages {
                         handle,
                         tracks,
                     ) => {
+                        self.controls.player_state = state::PlayerState {
+                            active_video_id: video_id.clone(),
+                            display_name: display_name.clone(),
+                            total_duration: duration,
+                            is_paused: false,
+                            seconds_passed: 0,
+                            queued_tracks: tracks.clone().unwrap_or_default(),
+                        };
+
                         self.playback_sender
                             .send(playback::AudioEvent::Queue(
                                 video_id.clone().to_string(),
@@ -213,11 +222,8 @@ impl Pages {
                         Task::batch(vec![
                             self.controls
                                 .update(components::control_bar::Event::InitiatePlay(
-                                    self.controls.active_video_id.clone(),
-                                    display_name.to_string(),
-                                    duration,
+                                    self.controls.player_state.active_video_id.clone(),
                                     handle.clone(),
-                                    self.controls.tracks.clone(),
                                 ))
                                 .map(UiEvent::ControlsAction),
                             playlist_command,
@@ -385,6 +391,15 @@ impl Pages {
                         handle,
                         tracks,
                     ) => {
+                        self.controls.player_state = state::PlayerState {
+                            active_video_id: video_id.clone(),
+                            display_name: display_name.clone(),
+                            total_duration: *duration,
+                            is_paused: false,
+                            seconds_passed: 0,
+                            queued_tracks: tracks.clone().unwrap(),
+                        };
+
                         self.playback_sender
                             .send(playback::AudioEvent::Queue(
                                 video_id.clone().to_string(),
@@ -406,22 +421,21 @@ impl Pages {
                         Task::batch(vec![
                             self.controls
                                 .update(components::control_bar::Event::InitiatePlay(
-                                    self.controls.active_video_id.clone(),
-                                    display_name.to_string(),
-                                    *duration,
+                                    self.controls.player_state.active_video_id.clone(),
                                     handle.clone(),
-                                    self.controls.tracks.clone(),
                                 ))
                                 .map(UiEvent::ControlsAction),
                             track_list_command,
                         ])
                     }
-                    track_list::Event::Submit => return Task::batch(vec![
-                        self.track_list
-                            .update(track_list::Event::GetThumbnailHandles)
-                            .map(UiEvent::TrackListAction),
-                        track_list_command,
-                    ]),
+                    track_list::Event::Submit => {
+                        return Task::batch(vec![
+                            self.track_list
+                                .update(track_list::Event::GetThumbnailHandles)
+                                .map(UiEvent::TrackListAction),
+                            track_list_command,
+                        ])
+                    }
                     track_list::Event::DeleteTrack => {
                         return Task::batch(vec![
                             self.track_list
@@ -530,7 +544,7 @@ impl Pages {
                             .send(playback::AudioEvent::Backward)
                             .expect("Failed to send backward command");
 
-                        if self.controls.tracks.is_empty() {
+                        if self.controls.player_state.queued_tracks.is_empty() {
                             return controls_command;
                         }
 
@@ -543,45 +557,50 @@ impl Pages {
                             .send(playback::AudioEvent::Forward)
                             .expect("Failed to send forward command");
 
-                        if self.controls.tracks.is_empty() {
+                        if self.controls.player_state.queued_tracks.is_empty() {
                             return controls_command;
                         }
 
                         let index = self
                             .controls
-                            .tracks
+                            .player_state
+                            .queued_tracks
                             .iter()
                             .position(|x| {
-                                x.get("video_id").unwrap() == &self.controls.active_video_id
+                                x.get("video_id").unwrap()
+                                    == &self.controls.player_state.active_video_id
                             })
                             .unwrap();
                         let next_index = index + 1;
-                        let next_track = &self.controls.tracks[next_index];
+                        let next_track = &self.controls.player_state.queued_tracks[next_index];
 
                         let video_id = next_track.get("video_id").unwrap();
                         let display_name = next_track.get("display_name").unwrap();
                         let duration = next_track.get("duration").unwrap().parse::<u64>().unwrap();
 
+                        self.controls.player_state.display_name = display_name.clone();
+                        self.controls.player_state.total_duration = duration;
+                        self.controls.player_state.active_video_id = video_id.clone();
+                        self.controls.player_state.seconds_passed = 0;
+
                         self.controls
-                            .update(control_bar::Event::InitiatePlay(
-                                video_id.to_string(),
-                                display_name.to_string(),
-                                duration,
-                                None,
-                                self.controls.tracks.clone(),
-                            ))
+                            .update(control_bar::Event::InitiatePlay(video_id.to_string(), None))
                             .map(UiEvent::ControlsAction)
                     }
                     components::control_bar::Event::Tick => {
                         if self.rpc_enabled {
-                            if !self.controls.is_paused {
+                            if !self.controls.player_state.is_paused {
                                 self.rpc_sender
                                     .as_ref()
                                     .unwrap()
                                     .send(rpc::RpcEvent::SetProgress(
-                                        self.controls.display_name.clone(),
-                                        self.controls.seconds_passed.to_string(),
-                                        self.controls.total_duration.to_string().clone(),
+                                        self.controls.player_state.display_name.clone(),
+                                        self.controls.player_state.seconds_passed.to_string(),
+                                        self.controls
+                                            .player_state
+                                            .total_duration
+                                            .to_string()
+                                            .clone(),
                                     ))
                                     .expect("Failed to send tick command");
                             }
